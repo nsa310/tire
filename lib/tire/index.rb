@@ -4,7 +4,7 @@ module Tire
     attr_reader :name
 
     def initialize(name, &block)
-      @name = name
+      @name = name if name
       instance_eval(&block) if block_given?
     end
 
@@ -43,15 +43,15 @@ module Tire
 
     def store(*args)
       document, options = args
-      type = get_type_from_document(document)
+      type = Index.get_type_from_document(document)
 
       if options
         percolate = options[:percolate]
         percolate = "*" if percolate === true
       end
 
-      id       = get_id_from_document(document)
-      document = convert_document_to_json(document)
+      id       = Index.get_id_from_document(document)
+      document = Index.convert_document_to_json(document)
 
       url  = id ? "#{Configuration.url}/#{@name}/#{type}/#{id}" : "#{Configuration.url}/#{@name}/#{type}/"
       url += "?percolate=#{percolate}" if percolate
@@ -65,13 +65,20 @@ module Tire
     end
 
     def bulk_store(documents, options = {})
+      Index.bulk_store(documents, options, @name)
+      ensure
+        curl = %Q|curl -X POST "#{Configuration.url}/_bulk" -d '{... data omitted ...}'|
+        logged('BULK', curl)
+    end
+
+    def self.bulk_store(documents, options = {}, name=nil)
       options.merge!({:method => "index"}) unless options[:method]
 
       payload = documents.map do |document|
 
         output = []
-        output << construct_document_meta(document, options[:method])
-        output << convert_document_to_json(document)
+        output << self.construct_document_meta(document, options[:method], name)
+        output << self.convert_document_to_json(document)
         output.join("\n")
       end
       payload << ""
@@ -91,10 +98,6 @@ module Tire
         else
           STDERR.puts "[ERROR] Too many exceptions occured, giving up. The HTTP response was: #{error.message}"
         end
-
-      ensure
-        curl = %Q|curl -X POST "#{Configuration.url}/_bulk" -d '{... data omitted ...}'|
-        logged('BULK', curl)
       end
     end
 
@@ -124,11 +127,11 @@ module Tire
     def remove(*args)
       if args.size > 1
         type, document = args
-        id             = get_id_from_document(document) || document
+        id             = Index.get_id_from_document(document) || document
       else
         document = args.pop
-        type     = get_type_from_document(document)
-        id       = get_id_from_document(document) || document
+        type     = Index.get_type_from_document(document)
+        id       = Index.get_id_from_document(document) || document
       end
       raise ArgumentError, "Please pass a document ID" unless id
 
@@ -221,9 +224,9 @@ module Tire
 
     def percolate(*args, &block)
       document = args.shift
-      type     = get_type_from_document(document)
+      type     = Index.get_type_from_document(document)
 
-      document = MultiJson.decode convert_document_to_json(document)
+      document = MultiJson.decode Index.convert_document_to_json(document)
 
       query = Search::Query.new(&block).to_hash if block_given?
 
@@ -260,7 +263,7 @@ module Tire
       end
     end
 
-    def get_parent_from_document(document)
+    def self.get_parent_from_document(document)
       parent = case
              when document.is_a?(Hash)
                document[:_parent] || document['_parent'] || document[:parent] || document['parent']
@@ -270,7 +273,7 @@ module Tire
       parent
     end
 
-    def get_type_from_document(document)
+    def self.get_type_from_document(document)
       old_verbose, $VERBOSE = $VERBOSE, nil # Silence Object#type deprecation warnings
       type = case
         when document.respond_to?(:document_type)
@@ -286,32 +289,48 @@ module Tire
       type || :document
     end
 
-    def get_id_from_document(document)
+    def self.get_id_from_document(document)
       old_verbose, $VERBOSE = $VERBOSE, nil # Silence Object#id deprecation warnings
       id = case
-        when document.is_a?(Hash)
-          document[:_id] || document['_id'] || document[:id] || document['id']
-        when document.respond_to?(:id) && document.id != document.object_id
-          document.id
-      end
+           when document.is_a?(Hash)
+             document[:_id] || document['_id'] || document[:id] || document['id']
+           when document.respond_to?(:id) && document.id != document.object_id
+             document.id
+           end
       $VERBOSE = old_verbose
       id
     end
 
-    def convert_document_to_json(document)
-      document = case
-        when document.is_a?(String) then document
-        when document.respond_to?(:to_indexed_json) then document.to_indexed_json
-        else raise ArgumentError, "Please pass a JSON string or object with a 'to_indexed_json' method"
-      end
+    def self.get_index_from_document(document) # All documents in a batch need not be intended for the same index
+      old_verbose, $VERBOSE = $VERBOSE, nil # Silence Object#id deprecation warnings
+      index = case
+              when document.is_a?(Hash)
+                document[:_index] || document['_index'] || document[:index] || document['index']
+              when document.respond_to?(:index)
+                document.index
+              end
+      $VERBOSE = old_verbose
+      index
     end
 
-    def construct_document_meta(document, op_type)
-        id   = get_id_from_document(document)
-        type = get_type_from_document(document)
-        parent = get_parent_from_document(document)
+    def self.convert_document_to_json(document)
+      document = case
+                 when document.is_a?(String) then document
+                 when document.respond_to?(:to_indexed_json) then document.to_indexed_json
+                 else raise ArgumentError, "Please pass a JSON string or object with a 'to_indexed_json' method"
+                 end
+    end
 
-        meta_hash = { '_index' => @name, '_type' => type}
+    def self.construct_document_meta(document, op_type, name=nil)
+        id   = Index.get_id_from_document(document)
+        type = Index.get_type_from_document(document)
+        parent = Index.get_parent_from_document(document)
+        index = Index.get_index_from_document(document)
+
+        puts "NAME of INDEX #{name}\n"
+
+        meta_hash = { '_index' => name, '_type' => type}
+        meta_hash['_index'] = index if index
         meta_hash['_id'] = id if id
         meta_hash['_parent'] = parent if parent
 
