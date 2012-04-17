@@ -66,9 +66,9 @@ module Tire
 
     def bulk_store(documents, options = {})
       Index.bulk_store(documents, options, @name)
-      ensure
-        curl = %Q|curl -X POST "#{Configuration.url}/_bulk" -d '{... data omitted ...}'|
-        logged('BULK', curl)
+    ensure
+      curl = %Q|curl -X POST "#{Configuration.url}/_bulk" -d '{... data omitted ...}'|
+      logged('BULK', curl)
     end
 
     def self.bulk_store(documents, options = {}, name=nil)
