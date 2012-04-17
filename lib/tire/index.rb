@@ -327,8 +327,6 @@ module Tire
         parent = Index.get_parent_from_document(document)
         index = Index.get_index_from_document(document)
 
-        puts "NAME of INDEX #{name}\n"
-
         meta_hash = { '_index' => name, '_type' => type}
         meta_hash['_index'] = index if index
         meta_hash['_id'] = id if id
