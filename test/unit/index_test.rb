@@ -359,15 +359,6 @@ module Tire
 
           assert !@index.bulk_store([ {:id => '1', :title => 'One'}, {:id => '2', :title => 'Two'} ])
         end
-
-#        should "display error message when collection item does not have ID" do
-#          Configuration.client.expects(:post).with{ |url, json| url  == "#{Configuration.url}/_bulk" }.returns(mock_response('success', 200))
-#          STDERR.expects(:puts).once
-#
-#          documents = [ { :title => 'Bogus' }, { :title => 'Real', :id => 1 } ]
-#          ActiveModelArticle.index.bulk_store documents
-#        end
-
       end
 
       context "when importing" do
