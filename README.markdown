@@ -2,7 +2,8 @@ Tire
 =========
 
 FORK PURPOSE:
-Documents meant for different indiced can be bulk indexed.
+- Documents meant for different indices can be bulk indexed.
+- Percolator support for bulk store.
 
 _Tire_ is a Ruby (1.8 or 1.9) client for the [ElasticSearch](http://www.elasticsearch.org/)
 search engine/database.

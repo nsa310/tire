@@ -331,6 +331,7 @@ module Tire
         meta_hash['_index'] = index if index
         meta_hash['_id'] = id if id
         meta_hash['_parent'] = parent if parent
+        meta_hash['_percolate'] = '*'
 
         action_meta_hash = {op_type => meta_hash}
 
